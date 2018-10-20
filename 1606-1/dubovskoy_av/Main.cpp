@@ -8,6 +8,7 @@
 #include "mpi.h"
 
 using namespace std;
+ 
 
 void CreateVec(float *vec, int N)
 {
@@ -20,6 +21,7 @@ void CreateVec(float *vec, int N)
 	}
 	cout << endl;
 }
+
 
 int main(int argc, char* argv[])
 {
