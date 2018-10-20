@@ -1,0 +1,6 @@
+﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppBuild.targets(391,5): warning MSB8028: промежуточный каталог (x64\Debug\) содержит файлы, которые используются совместно с другим проектом (MPI_TEST.vcxproj).  Это может привести к ошибкам очистки и перестроения.
+  Source.cpp
+c:\users\andre\onedrive\documents\programs codes\mpi_test\mpi_test\source.cpp(16): warning C4244: =: преобразование "int" в "float", возможна потеря данных
+c:\users\andre\onedrive\documents\programs codes\mpi_test\mpi_test\source.cpp(54): warning C4244: =: преобразование "double" в "float", возможна потеря данных
+c:\users\andre\onedrive\documents\programs codes\mpi_test\mpi_test\source.cpp(75): warning C4244: =: преобразование "double" в "float", возможна потеря данных
+  MPI_TEST.vcxproj -> C:\Users\andre\OneDrive\Documents\Programs Codes\MPI_TEST\x64\Debug\Lab1.exe

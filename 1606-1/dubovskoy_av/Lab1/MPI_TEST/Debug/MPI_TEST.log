@@ -1,0 +1,5 @@
+﻿  Source.cpp
+  Source1.cpp
+c:\users\andre\onedrive\documents\programs codes\mpi_test\mpi_test\source1.cpp(27): warning C4244: =: преобразование "int" в "float", возможна потеря данных
+  Создание кода...
+  MPI_TEST.vcxproj -> C:\Users\andre\OneDrive\Documents\Programs Codes\MPI_TEST\Debug\MPI_TEST.exe
