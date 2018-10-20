@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctime>
 
 #include "mpi.h"
 
@@ -11,6 +12,7 @@ using namespace std;
 void CreateVec(float *vec, int N)
 {
 	cout << "Vector: ";
+	srand(time(nullptr));
 	for (int i = 0; i < N; i++)
 	{
 		vec[i] = rand() % 201 - 100;
@@ -53,8 +55,6 @@ int main(int argc, char* argv[])
 
 		time1 = MPI_Wtime();
 		
-
-
 		for (int i = 0; i < ProcNum - 1; i++)
 		{
 			tmp = vec + i * n;
@@ -71,11 +71,7 @@ int main(int argc, char* argv[])
 			MPI_Recv(&Sum, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &Status);
 			TotalSum += Sum;
 		}
-		TotalSum = TotalSum / N;
-		time2 = MPI_Wtime();
-		//Вывод
-		cout<<"Total sum: "<<TotalSum<<endl;
-		cout<<"Runtime: "<<time2 - time1<<endl;
+		
 				
 	}
 	else
@@ -88,10 +84,18 @@ int main(int argc, char* argv[])
 		MPI_Send(&Sum, 1, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);// отправка Sum
 		cout << Sum << endl;
 	}
-
+	if (ProcRank == 0)
+	{
+		TotalSum = TotalSum / N;
+		time2 = MPI_Wtime();
+		//Вывод
+		cout << "Total sum: " << TotalSum << endl;
+		cout << "Runtime: " << time2 - time1 << endl;
+	}
 	
 	
 	MPI_Finalize();
-	cin >> TotalSum;
+	cin.ignore();
+	cin.ignore();
 	return 0;
 }
