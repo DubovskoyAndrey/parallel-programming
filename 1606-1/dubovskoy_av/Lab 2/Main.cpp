@@ -2,6 +2,7 @@
 #include <time.h>
 #include <mpi.h>
 
+
 using namespace std;
 
 int* CreateMatrix(int n, int m)
@@ -18,8 +19,7 @@ void OutputMatrix(int n, int m, int* matrixToOutput)
 	for (int i = 0; i < n; i++)
 	{
 		for (int j = 0; j < m; j++)
-			cout << matrixToOutput[i*m + j] << " ";
-
+			cout << matrixToOutput[i * m + j] << " ";
 		cout << endl;
 	}
 }
@@ -33,9 +33,9 @@ int main(int argc, char **argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &procNum);
 	MPI_Comm_rank(MPI_COMM_WORLD, &procRank);
 
-	int n = 5;//столбцы в первой
-	int m = 5;//строки в первой, столбцы во второй
-	int s = 5;//строки во второй
+	int n = atoi(argv[1]);//строки в первой
+	int m = atoi(argv[2]);//столбцы в первой, строки во второй
+	int s = atoi(argv[3]);//столбцы во второй
 
 	//массивы для хранения матриц 
 	int* m1 = new int[n*m];
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 	//Линейный
 	if (procRank == 0)
 	{
-		cout << procNum <<" "<< procRank << endl;
+		cout <<"ProcNum: "<< procNum <<" ProcRank: "<< procRank << endl;
 		srand(time(0));
 
 		m1 = CreateMatrix(n, m);
@@ -54,9 +54,11 @@ int main(int argc, char **argv)
 		m3 = CreateMatrix(n, s);
 		m4 = CreateMatrix(n, s);
 
-		OutputMatrix(m, n, m1);
+		cout << " Matrix 1:"<< endl;
+		OutputMatrix(n, m, m1);
 		cout << endl;
-		OutputMatrix(n, s, m2);
+		cout << " Matrix 2:"<< endl;
+		OutputMatrix(m, s, m2);
 		cout << endl;
 
 		startTime = MPI_Wtime();
@@ -84,7 +86,6 @@ int main(int argc, char **argv)
 	//Параллельный
 	//Cинхронизация процессов
 	MPI_Barrier(MPI_COMM_WORLD);
-
 	startTime = MPI_Wtime();
 
 	int* send_quantity = new int[procNum]; //массив кол-в эл-тов, посылаемых i-му процесору
@@ -92,28 +93,38 @@ int main(int argc, char **argv)
 
 	int* rec_quantity = new int[procNum]; //массив кол-ва эл-тов, получаемых от i-ого процессора
 	int* rec_displs = new int[procNum]; //массив смещений относительно начала посылаемого буфера для данных, получаемых от i;
+
 	int rowCount; //число строк, переданных i-ому процессору
 	int* matrix1par, *matrix2par;
 
 	if (procRank == 0)
 	{
+		if (procNum > n)
+		{
+			cout << "procNum > n";
+			return -1;
+		}
 		int ch = n / procNum;
 		int r = n % procNum;
 		cout << "ch: " << ch << " r: " << r;
-		if (procRank < r) rowCount = ch + 1;
+		if (procRank < r) rowCount = ch + r;
 		else rowCount = ch;
 
+		cout << endl;
 		for (int i = 0; i < procNum; i++)
-		{
+		{			
 			send_quantity[i] = ch * m;
 			send_displs[i] = i * ch * m;
 			rec_quantity[i] = ch * s;
-			rec_displs[i] = i * ch * s;
-
+			rec_displs[i] = i * ch * s;			
 		}
 		r = n - (procNum - 1) * ch;
-		send_quantity[procNum - 1] = r * m;
+		send_quantity[procNum - 1] = r * m;		
 		rec_quantity[procNum - 1] = r * s;
+		for (int i = 0; i < procNum; i++)
+		{
+			cout << "procRank: " << i <<" "<< send_quantity[i] << " " << send_displs[i] << endl;
+		}
 	}
 	//Рассылка данных (неделимых) процессорам
 	MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -128,13 +139,9 @@ int main(int argc, char **argv)
 	MPI_Bcast(rec_displs, procNum, MPI_INT, 0, MPI_COMM_WORLD);
 	MPI_Bcast(&rowCount, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-
-
-
 	// Контейнеры для передачи и получения
 	matrix1par = new int[send_quantity[procRank]];
 	matrix2par = new int[rec_quantity[procRank]];
-
 
 	// Рассылка частей процессорам		
 	MPI_Scatterv(m1, send_quantity, send_displs, MPI_INT, matrix1par, send_quantity[procRank], MPI_INT, 0, MPI_COMM_WORLD);
@@ -145,13 +152,12 @@ int main(int argc, char **argv)
 		{
 			matrix2par[i * s + k] = 0;
 			for (int j = 0; j < m; j++)
-			{
+			{				
 				matrix2par[i * s + k] += matrix1par[i * m + j] * m2[j * s + k];
 			}
 		}
 	}
-
-
+	
 	// Сбор блоков в главный процессор	
 	MPI_Gatherv(matrix2par, rec_quantity[procRank], MPI_INT, m4, rec_quantity, rec_displs, MPI_INT, 0, MPI_COMM_WORLD);
 	endTime = MPI_Wtime();
@@ -174,6 +180,5 @@ int main(int argc, char **argv)
 	delete[] m3;	
 	delete[] m4;
 	
-	system("pause");
 	MPI_Finalize();
 }
