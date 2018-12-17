@@ -1,11 +1,11 @@
-#include <iostream>
+п»ї#include <iostream>
 #include <time.h>
 #include <mpi.h>
 #include <math.h>
 #include <stdlib.h>
 
 using namespace std;
-//создание массива
+
 int* create_array(int size)
 {
 	int* array = new int[size];
@@ -69,18 +69,19 @@ int getMax(int* arr, int n)
 }
 void countSort(int* arr, int n, int exp)
 {
-	int *output=new int(n); // output array 
+	int *output = new int(n); // output array 
 	int i, count[10] = { 0 };
-	
+
 	for (i = 0; i < n; i++)
 		count[(arr[i] / exp) % 10]++;
 	for (i = 1; i < 10; i++)
-		count[i] += count[i - 1];	 
+		count[i] += count[i - 1];
 	for (i = n - 1; i >= 0; i--)
 	{
 		output[count[(arr[i] / exp) % 10] - 1] = arr[i];
-		count[(arr[i] / exp) % 10]--;	}
-	
+		count[(arr[i] / exp) % 10]--;
+	}
+
 	for (i = 0; i < n; i++)
 		arr[i] = output[i];
 }
@@ -92,23 +93,24 @@ void radixsort(int arr[], int n)
 }
 
 
-//вывод массива
+
 void print_array(int* array, int length)
 {
-	cout<<"A:	";
+	cout << "A:	";
 	for (int i = 0; i < length; i++)
 	{
-		cout<< array[i]<<" ";
+		cout << array[i] << " ";
 	}
 	cout << endl;
 }
-/* Схема:
-На ROOT создается исходный массив, который рассылается по нодам, с размером блока ( размер_массива / количество_нод )
-На ROOT также остается только массив с полученным размером блока.
-Потом уже работает алгоритм чет-нечетной перестановки.
-Узлы меняются друг с другом массивами.
-Сортируются.
-Младший нод оставляет себе меньшую часть. Старший большую. */
+/* РЎС…РµРјР°:
+РќР° ROOT_NODE СЃРѕР·РґР°РµС‚СЃСЏ РёСЃС…РѕРґРЅС‹Р№ РјР°СЃСЃРёРІ, РєРѕС‚РѕСЂС‹Р№ СЂР°СЃСЃС‹Р»Р°РµС‚СЃСЏ РїРѕ РЅРѕРґР°Рј, СЃ СЂР°Р·РјРµСЂРѕРј Р±Р»РѕРєР° ( СЂР°Р·РјРµСЂ_РјР°СЃСЃРёРІР° / РєРѕР»РёС‡РµСЃС‚РІРѕ_РЅРѕРґ )
+РќР° ROOT_NODE С‚Р°РєР¶Рµ РѕСЃС‚Р°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РјР°СЃСЃРёРІ СЃ РїРѕР»СѓС‡РµРЅРЅС‹Рј СЂР°Р·РјРµСЂРѕРј Р±Р»РѕРєР°.
+РџРѕС‚РѕРј СѓР¶Рµ СЂР°Р±РѕС‚Р°РµС‚ Р°Р»РіРѕСЂРёС‚Рј С‡РµС‚-РЅРµС‡РµС‚РЅРѕР№ РїРµСЂРµСЃС‚Р°РЅРѕРІРєРё.
+РЈР·Р»С‹ РјРµРЅСЏСЋС‚СЃСЏ РґСЂСѓРі СЃ РґСЂСѓРіРѕРј РјР°СЃСЃРёРІР°РјРё.
+РЎРѕСЂС‚РёСЂСѓСЋС‚СЃСЏ.
+РњР»Р°РґС€РёР№ РЅРѕРґ РѕСЃС‚Р°РІР»СЏРµС‚ СЃРµР±Рµ РјРµРЅСЊС€СѓСЋ С‡Р°СЃС‚СЊ. РЎС‚Р°СЂС€РёР№ Р±РѕР»СЊС€СѓСЋ. */
+
 int main(int argc, char **argv)
 {
 	int n = atoi(argv[1]);
@@ -121,21 +123,30 @@ int main(int argc, char **argv)
 	int** send_array;
 
 	MPI_Status status;
-	
+
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &procNum);
 	MPI_Comm_rank(MPI_COMM_WORLD, &procRank);
 	MPI_Barrier(MPI_COMM_WORLD);
-	//Линейная
+	
 	if (procRank == 0)
 	{
+		/*if (n%procNum != 0)
+		{
+			cout << "N % ProcNum !=0";
+			return -1;
+		}*/
 		a = create_array(n);
 		print_array(a, n);
+		int* tmp = new int[n];
+		for (int i = 0; i < n; i++)
+			tmp[i] = a[i];
 		startTime = MPI_Wtime();
-		radixsort(a, n);
+		radixsort(tmp, n);
 		endTime = MPI_Wtime();
-		print_array(a, n);
+		print_array(tmp, n);
 		cout << "Linear time: " << endTime - startTime;
+		startTime = MPI_Wtime();
 	}
 
 	int nodes_count = procNum;
@@ -167,7 +178,7 @@ int main(int argc, char **argv)
 		recv_array = new int[block_size];
 		MPI_Recv(recv_array, block_size, MPI_INT, ROOT, 0, MPI_COMM_WORLD, &status);
 	}
-	/* Для LAST_NODE */
+	/* Р”Р»СЏ LAST */
 	else if (current_node == LAST && current_node != ROOT)
 	{
 		if (diff_slices)
@@ -181,10 +192,10 @@ int main(int argc, char **argv)
 			MPI_Recv(recv_array, block_size, MPI_INT, ROOT, 0, MPI_COMM_WORLD, &status);
 		}
 	}
-	/* Для ROOT_NODE */
+	/* Р”Р»СЏ ROOT */
 	else
 	{
-		/* Делим массив на блоки для отправки */
+		/* Р”РµР»РёРј РјР°СЃСЃРёРІ РЅР° Р±Р»РѕРєРё РґР»СЏ РѕС‚РїСЂР°РІРєРё */
 		send_array = new int*[nodes_count];
 		for (int i = ROOT; i < LAST; i++)
 			send_array[i] = new int[block_size];
@@ -210,10 +221,10 @@ int main(int argc, char **argv)
 		{
 			for (int i = 1; i < LAST; i++)
 			{
-				MPI_Send(send_array[i], block_size, MPI_INT, i, 0,MPI_COMM_WORLD);
+				MPI_Send(send_array[i], block_size, MPI_INT, i, 0, MPI_COMM_WORLD);
 			}
 			if (diff_slices)
-				MPI_Send(send_array[LAST], block_size + n % nodes_count, MPI_INT, LAST, 0,MPI_COMM_WORLD);
+				MPI_Send(send_array[LAST], block_size + n % nodes_count, MPI_INT, LAST, 0, MPI_COMM_WORLD);
 			else
 				MPI_Send(send_array[LAST], block_size, MPI_INT, LAST, 0, MPI_COMM_WORLD);
 		}
@@ -222,7 +233,7 @@ int main(int argc, char **argv)
 		recv_array = send_array[0];
 
 	}
-	/* Ждем пока каждый нод получит свою долю */
+	/* Р–РґРµРј РїРѕРєР° РєР°Р¶РґС‹Р№ РЅРѕРґ РїРѕР»СѓС‡РёС‚ СЃРІРѕСЋ РґРѕР»СЋ */
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	for (int j = 0; j < nodes_count; j++)
@@ -245,23 +256,23 @@ int main(int argc, char **argv)
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	if (nodes_count == 1)
-		radixsort(recv_array, n);	
+		radixsort(recv_array, n);
 
-	/* Алгоритм чет-нечетной перестановки */
-	/* Обмен массивами между нодами, слияния, сортировка и отсечение */
+	/* РђР»РіРѕСЂРёС‚Рј С‡РµС‚-РЅРµС‡РµС‚РЅРѕР№ РїРµСЂРµСЃС‚Р°РЅРѕРІРєРё */
+	/* РћР±РјРµРЅ РјР°СЃСЃРёРІР°РјРё РјРµР¶РґСѓ РЅРѕРґР°РјРё, СЃР»РёСЏРЅРёСЏ, СЃРѕСЂС‚РёСЂРѕРІРєР° Рё РѕС‚СЃРµС‡РµРЅРёРµ */
 	for (int n = 0; n < nodes_count; n++)
 	{
-		/* Четная итерация */
+		/* Р§РµС‚РЅР°СЏ РёС‚РµСЂР°С†РёСЏ */
 		if (n % 2 == 0)
 		{
 			for (int j = 0; j < LAST; j += 2)
 			{
 				if (current_node == j)
 				{
-					/* Отправление соседней ноде своего массива */
+					/* РћС‚РїСЂР°РІР»РµРЅРёРµ СЃРѕСЃРµРґРЅРµР№ РЅРѕРґРµ СЃРІРѕРµРіРѕ РјР°СЃСЃРёРІР° */	
 					MPI_Send(recv_array, block_size, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
-					/* Если есть блок с остатком и соседний нод последний */
-					/* Если это не так, то в текущем ноде всегда будет количество элементов без остатка */
+					/* Р•СЃР»Рё РµСЃС‚СЊ Р±Р»РѕРє СЃ РѕСЃС‚Р°С‚РєРѕРј Рё СЃРѕСЃРµРґРЅРёР№ РЅРѕРґ РїРѕСЃР»РµРґРЅРёР№ */
+					/* Р•СЃР»Рё СЌС‚Рѕ РЅРµ С‚Р°Рє, С‚Рѕ РІ С‚РµРєСѓС‰РµРј РЅРѕРґРµ РІСЃРµРіРґР° Р±СѓРґРµС‚ РєРѕР»РёС‡РµСЃС‚РІРѕ СЌР»РµРјРµРЅС‚РѕРІ Р±РµР· РѕСЃС‚Р°С‚РєР° */
 					if (diff_slices && j + 1 == LAST)
 					{
 						tmp_recv_array = new int[block_size + n % nodes_count];
@@ -282,7 +293,7 @@ int main(int argc, char **argv)
 				else if (current_node == j + 1)
 				{
 					tmp_recv_array = new int[block_size];
-					/* Если текущий нод последний и есть остаток, то отправляем соседу массив с размером блока с остатком */
+					/* Р•СЃР»Рё С‚РµРєСѓС‰РёР№ РЅРѕРґ РїРѕСЃР»РµРґРЅРёР№ Рё РµСЃС‚СЊ РѕСЃС‚Р°С‚РѕРє, С‚Рѕ РѕС‚РїСЂР°РІР»СЏРµРј СЃРѕСЃРµРґСѓ РјР°СЃСЃРёРІ СЃ СЂР°Р·РјРµСЂРѕРј Р±Р»РѕРєР° СЃ РѕСЃС‚Р°С‚РєРѕРј */
 					if (diff_slices && current_node == LAST)
 						MPI_Send(recv_array, block_size + n % nodes_count, MPI_INT, j, 0, MPI_COMM_WORLD);
 					else
@@ -304,7 +315,7 @@ int main(int argc, char **argv)
 				}
 			}
 		}
-		/*Нечетная итерация*/
+		/* РќРµС‡РµС‚РЅР°СЏ РёС‚РµСЂР°С†РёСЏ */
 		else
 		{
 			for (int j = 1; j < LAST; j += 2)
@@ -315,7 +326,7 @@ int main(int argc, char **argv)
 					if (diff_slices && j + 1 == LAST)
 					{
 						tmp_recv_array = new int[block_size + n % nodes_count];
-						MPI_Recv(tmp_recv_array, block_size + n % nodes_count, MPI_INT, j + 1,0, MPI_ANY_TAG, &status);
+						MPI_Recv(tmp_recv_array, block_size + n % nodes_count, MPI_INT, j + 1, 0, MPI_ANY_TAG, &status);
 						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size, block_size + n % nodes_count);
 						radixsort(merged_array, block_size * 2 + n % nodes_count);
 						recv_array = get_part_of_array(merged_array, 0, block_size);
@@ -363,22 +374,23 @@ int main(int argc, char **argv)
 		if (j == current_node)
 			if (diff_slices && current_node == LAST)
 			{
-				printf(" count %d\n", block_size + n % nodes_count);
+				cout << " count " << block_size + n % nodes_count << endl;
 				for (int i = 0; i < block_size + n % nodes_count; i++)
-					printf("node[%d] Sorted array[%d] is %d \n", current_node, i, recv_array[i]);
+					cout<<"node " << current_node << " Sorted array " << i<<" is " << recv_array[i] << endl;
 			}
 			else
 			{
 				for (int i = 0; i < block_size; i++)
 				{
-					printf("node[%d] Sorted array[%d] is %d \n", current_node, i, recv_array[i]);
+					cout << "node " << current_node << " Sorted array " << i << " is " << recv_array[i] << endl;
 				}
 			}
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
-	
-	printf(" Communication time of %d: %f seconds\n\n", current_node, MPI_Wtime()-startTime);
+
+	if (procRank == 0)
+		cout << " Paralel time : " << MPI_Wtime() - startTime << endl << endl;
 	MPI_Finalize();
 	return 0;
 }
