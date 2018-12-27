@@ -3,15 +3,16 @@
 #include <mpi.h>
 #include <math.h>
 #include <stdlib.h>
-
-using namespace std;
+#include <chrono>
+#include <limits>
 
 int* create_array(int size)
 {
+	srand(time(NULL));
 	int* array = new int[size];
 	for (int i = 0; i < size; i++)
 	{
-		array[i] = rand() % 1000;
+		array[i] = rand() % 100;
 	}
 	return array;
 }
@@ -19,7 +20,7 @@ int* create_array(int size)
 void compexch(int* a, int* b)
 {
 	if (b < a)
-		swap(a, b);
+		std::swap(a, b);
 }
 int* get_part_of_array(int* arr, int start_pos, int end_pos)
 {
@@ -91,18 +92,20 @@ void radixsort(int arr[], int n)
 	for (int exp = 1; m / exp > 0; exp *= 10)
 		countSort(arr, n, exp);
 }
-
-
-
 void print_array(int* array, int length)
 {
-	cout << "A:	";
-	for (int i = 0; i < length; i++)
+	if (length < 20)
 	{
-		cout << array[i] << " ";
+		std::cout << "A:	";
+		for (int i = 0; i < length; i++)
+		{
+			std::cout << array[i] << " ";
+		}
+		std::cout << std::endl;
 	}
-	cout << endl;
 }
+
+
 /* Схема:
 На ROOT_NODE создается исходный массив, который рассылается по нодам, с размером блока ( размер_массива / количество_нод )
 На ROOT_NODE также остается только массив с полученным размером блока.
@@ -111,11 +114,18 @@ void print_array(int* array, int length)
 Сортируются.
 Младший нод оставляет себе меньшую часть. Старший большую. */
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
+
+	using namespace std;
+	using namespace std::chrono;
+	using time = chrono::steady_clock::time_point;
+
+
+
 	int n = atoi(argv[1]);
 	int procNum = 0, procRank = 0;
-	double startTime, endTime;
+
 
 	int *a = new int[n];
 	int* recv_array;
@@ -128,7 +138,12 @@ int main(int argc, char **argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &procNum);
 	MPI_Comm_rank(MPI_COMM_WORLD, &procRank);
 	MPI_Barrier(MPI_COMM_WORLD);
-	
+	high_resolution_clock::time_point startTime;
+	high_resolution_clock::time_point endTime;
+	high_resolution_clock::time_point startTimeM;
+	high_resolution_clock::time_point endTimeM;
+
+	//Linear
 	if (procRank == 0)
 	{
 		/*if (n%procNum != 0)
@@ -141,13 +156,15 @@ int main(int argc, char **argv)
 		int* tmp = new int[n];
 		for (int i = 0; i < n; i++)
 			tmp[i] = a[i];
-		startTime = MPI_Wtime();
+		auto startTime = std::chrono::steady_clock::now();
 		radixsort(tmp, n);
-		endTime = MPI_Wtime();
+		auto endTime = std::chrono::steady_clock::now();
+		auto elapsed_ms = chrono::duration_cast<chrono::nanoseconds>(endTime - startTime).count();
 		print_array(tmp, n);
-		cout << "Linear time: " << endTime - startTime;
-		startTime = MPI_Wtime();
+		cout << "Linear time: " << elapsed_ms << " ns\n";
+
 	}
+
 
 	int nodes_count = procNum;
 
@@ -160,19 +177,21 @@ int main(int argc, char **argv)
 
 	int current_node = procRank;
 
-	if (nodes_count > n)
-		nodes_count = n - 1;
 	const int LAST = nodes_count - 1;
 	const int ROOT = 0;
 	int block_size = n / nodes_count;
 	bool diff_slices;
+	int remainder = 0;
 	if (n % nodes_count != 0)
+	{
 		diff_slices = true;
+		remainder = n % nodes_count;
+	}
 	else
 		diff_slices = false;
 
 
-	cout << "current node is " << current_node << endl;
+
 	if (current_node != ROOT && current_node != LAST)
 	{
 		recv_array = new int[block_size];
@@ -183,8 +202,8 @@ int main(int argc, char **argv)
 	{
 		if (diff_slices)
 		{
-			recv_array = new int[block_size + n % nodes_count];
-			MPI_Recv(recv_array, block_size + n % nodes_count, MPI_INT, ROOT, 0, MPI_COMM_WORLD, &status);
+			recv_array = new int[block_size + remainder];
+			MPI_Recv(recv_array, block_size + remainder, MPI_INT, ROOT, 0, MPI_COMM_WORLD, &status);
 		}
 		else
 		{
@@ -201,7 +220,7 @@ int main(int argc, char **argv)
 			send_array[i] = new int[block_size];
 
 		if (diff_slices)
-			send_array[LAST] = new int[block_size + n % nodes_count];
+			send_array[LAST] = new int[block_size + remainder];
 		else
 			send_array[LAST] = new int[block_size];
 
@@ -210,7 +229,7 @@ int main(int argc, char **argv)
 				send_array[i][j] = a[i*block_size + j];
 
 		if (diff_slices)
-			for (int j = 0; j < block_size + n % nodes_count; j++)
+			for (int j = 0; j < block_size + remainder; j++)
 				send_array[LAST][j] = a[block_size*(LAST)+j];
 		else
 			for (int j = 0; j < block_size; j++)
@@ -224,7 +243,7 @@ int main(int argc, char **argv)
 				MPI_Send(send_array[i], block_size, MPI_INT, i, 0, MPI_COMM_WORLD);
 			}
 			if (diff_slices)
-				MPI_Send(send_array[LAST], block_size + n % nodes_count, MPI_INT, LAST, 0, MPI_COMM_WORLD);
+				MPI_Send(send_array[LAST], block_size + remainder, MPI_INT, LAST, 0, MPI_COMM_WORLD);
 			else
 				MPI_Send(send_array[LAST], block_size, MPI_INT, LAST, 0, MPI_COMM_WORLD);
 		}
@@ -236,22 +255,29 @@ int main(int argc, char **argv)
 	/* Ждем пока каждый нод получит свою долю */
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	for (int j = 0; j < nodes_count; j++)
+	if (n < 20)
 	{
-		MPI_Barrier(MPI_COMM_WORLD);
-		if (j == current_node)
-			if (diff_slices && current_node == LAST)
-			{
-				cout << "node " << current_node << " count " << block_size + n % nodes_count << endl;
-				for (int i = 0; i < block_size + n % nodes_count; i++)
-					cout << "node " << current_node << " array " << i << " is " << recv_array[i] << endl;
-			}
-			else
-			{
-				for (int i = 0; i < block_size; i++)
-					cout << "node " << current_node << " array " << i << " is " << recv_array[i] << endl;
-			}
+		for (int j = 0; j < nodes_count; j++)
+		{
+			MPI_Barrier(MPI_COMM_WORLD);
+			if (j == current_node)
+				if (diff_slices && current_node == LAST)
+				{
+					cout << "node " << current_node << " count " << block_size + remainder << endl;
+					for (int i = 0; i < block_size + remainder; i++)
+						cout << "node " << current_node << " array " << i << " is " << recv_array[i] << endl;
+				}
+				else
+				{
+					cout << "node " << current_node << " count " << block_size << endl;
+					for (int i = 0; i < block_size; i++)
+						cout << "node " << current_node << " array " << i << " is " << recv_array[i] << endl;
+					cout << endl;
+				}
+
+		}
 	}
+
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
@@ -260,25 +286,29 @@ int main(int argc, char **argv)
 
 	/* Алгоритм чет-нечетной перестановки */
 	/* Обмен массивами между нодами, слияния, сортировка и отсечение */
-	for (int n = 0; n < nodes_count; n++)
+	if (procRank == 0)
+	{
+		auto startTimeM = std::chrono::steady_clock::now();
+	}
+	for (int g = 1; g < nodes_count + 1; g++)
 	{
 		/* Четная итерация */
-		if (n % 2 == 0)
+		if (g % 2 == 0)
 		{
 			for (int j = 0; j < LAST; j += 2)
 			{
 				if (current_node == j)
 				{
-					/* Отправление соседней ноде своего массива */	
+					/* Отправление соседней ноде своего массива */
 					MPI_Send(recv_array, block_size, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
 					/* Если есть блок с остатком и соседний нод последний */
 					/* Если это не так, то в текущем ноде всегда будет количество элементов без остатка */
 					if (diff_slices && j + 1 == LAST)
 					{
-						tmp_recv_array = new int[block_size + n % nodes_count];
-						MPI_Recv(tmp_recv_array, block_size + n % nodes_count, MPI_INT, j + 1, 0, MPI_COMM_WORLD, &status);
+						tmp_recv_array = new int[block_size + remainder];
+						MPI_Recv(tmp_recv_array, block_size + remainder, MPI_INT, j + 1, 0, MPI_COMM_WORLD, &status);
 						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size, block_size + n % nodes_count);
-						radixsort(merged_array, block_size + block_size + n % nodes_count);
+						radixsort(merged_array, block_size + block_size + remainder);
 						recv_array = get_part_of_array(merged_array, 0, block_size);
 					}
 					else
@@ -295,16 +325,16 @@ int main(int argc, char **argv)
 					tmp_recv_array = new int[block_size];
 					/* Если текущий нод последний и есть остаток, то отправляем соседу массив с размером блока с остатком */
 					if (diff_slices && current_node == LAST)
-						MPI_Send(recv_array, block_size + n % nodes_count, MPI_INT, j, 0, MPI_COMM_WORLD);
+						MPI_Send(recv_array, block_size + remainder, MPI_INT, j, 0, MPI_COMM_WORLD);
 					else
 						MPI_Send(recv_array, block_size, MPI_INT, j, 0, MPI_COMM_WORLD);
 
 					MPI_Recv(tmp_recv_array, block_size, MPI_INT, j, 0, MPI_COMM_WORLD, &status);
 					if (diff_slices && current_node == LAST)
 					{
-						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size + n % nodes_count, block_size);
-						radixsort(merged_array, block_size * 2 + n % nodes_count);
-						recv_array = get_part_of_array(merged_array, block_size, 2 * block_size + n % nodes_count);
+						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size + remainder, block_size);
+						radixsort(merged_array, block_size * 2 + remainder);
+						recv_array = get_part_of_array(merged_array, block_size, 2 * block_size + remainder);
 					}
 					else
 					{
@@ -325,10 +355,10 @@ int main(int argc, char **argv)
 					MPI_Send(recv_array, block_size, MPI_INT, j + 1, 0, MPI_COMM_WORLD);
 					if (diff_slices && j + 1 == LAST)
 					{
-						tmp_recv_array = new int[block_size + n % nodes_count];
-						MPI_Recv(tmp_recv_array, block_size + n % nodes_count, MPI_INT, j + 1, 0, MPI_ANY_TAG, &status);
-						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size, block_size + n % nodes_count);
-						radixsort(merged_array, block_size * 2 + n % nodes_count);
+						tmp_recv_array = new int[block_size + remainder];
+						MPI_Recv(tmp_recv_array, block_size + remainder, MPI_INT, j + 1, 0, MPI_ANY_TAG, &status);
+						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size, block_size + remainder);
+						radixsort(merged_array, block_size * 2 + remainder);
 						recv_array = get_part_of_array(merged_array, 0, block_size);
 					}
 					else
@@ -344,16 +374,16 @@ int main(int argc, char **argv)
 				{
 					tmp_recv_array = new int[block_size];
 					if (diff_slices && current_node == LAST)
-						MPI_Send(recv_array, block_size + n % nodes_count, MPI_INT, j, 0, MPI_COMM_WORLD);
+						MPI_Send(recv_array, block_size + remainder, MPI_INT, j, 0, MPI_COMM_WORLD);
 					else
 						MPI_Send(recv_array, block_size, MPI_INT, j, 0, MPI_COMM_WORLD);
 
 					MPI_Recv(tmp_recv_array, block_size, MPI_INT, j, 0, MPI_COMM_WORLD, &status);
 					if (diff_slices && current_node == LAST)
 					{
-						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size + n % nodes_count, block_size);
-						radixsort(merged_array, block_size * 2 + n % nodes_count);
-						recv_array = get_part_of_array(merged_array, block_size, 2 * block_size + n % nodes_count);
+						int* merged_array = merge_arrays(recv_array, tmp_recv_array, block_size + remainder, block_size);
+						radixsort(merged_array, block_size * 2 + remainder);
+						recv_array = get_part_of_array(merged_array, block_size, 2 * block_size + remainder);
 					}
 					else
 					{
@@ -368,29 +398,49 @@ int main(int argc, char **argv)
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	for (int j = 0; j < nodes_count; j++)
-	{
-		MPI_Barrier(MPI_COMM_WORLD);
-		if (j == current_node)
-			if (diff_slices && current_node == LAST)
-			{
-				cout << " count " << block_size + n % nodes_count << endl;
-				for (int i = 0; i < block_size + n % nodes_count; i++)
-					cout<<"node " << current_node << " Sorted array " << i<<" is " << recv_array[i] << endl;
-			}
-			else
-			{
-				for (int i = 0; i < block_size; i++)
+	if (n < 20)
+		for (int j = 0; j < nodes_count; j++)
+		{
+			MPI_Barrier(MPI_COMM_WORLD);
+			if (j == current_node)
+				if (diff_slices && current_node == LAST)
 				{
-					cout << "node " << current_node << " Sorted array " << i << " is " << recv_array[i] << endl;
+					
+					for (int i = 0; i < block_size + remainder; i++)
+					{
+						if (recv_array[i] != a[current_node*block_size + i])
+						{
+							cout << "Sorted arrays are not equal!!!!" << endl;
+							return -1;
+						}
+						cout << "node " << current_node << " Sorted array " << i << " is " << recv_array[i] << endl;
+					}
 				}
-			}
-	}
+				else
+				{
+					for (int i = 0; i < block_size; i++)
+					{
+
+						if (recv_array[i] != a[current_node*block_size + i])
+						{
+							cout << "Sorted arrays are not equal!!!!" << endl;
+							return -1;
+						}
+						cout << "node " << current_node << " Sorted array " << i << " is " << recv_array[i] << endl;
+					}
+				}
+		}
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
+
 	if (procRank == 0)
-		cout << " Paralel time : " << MPI_Wtime() - startTime << endl << endl;
+	{
+		cout << "Sorted arrays are equal" << endl;
+		auto endTimeM = std::chrono::steady_clock::now();
+		auto elapsed_msM = chrono::duration_cast<chrono::seconds>(endTimeM - startTimeM).count();
+		cout << "Parralel time: " << elapsed_msM << " ns\n";
+	}
 	MPI_Finalize();
 	return 0;
 }
