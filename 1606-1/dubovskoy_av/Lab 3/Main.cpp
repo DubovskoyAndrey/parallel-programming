@@ -142,28 +142,12 @@ int main(int argc, char *argv[])
 	high_resolution_clock::time_point endTime;
 	high_resolution_clock::time_point startTimeM;
 	high_resolution_clock::time_point endTimeM;
-
-	//Linear
 	if (procRank == 0)
 	{
-		/*if (n%procNum != 0)
-		{
-			cout << "N % ProcNum !=0";
-			return -1;
-		}*/
 		a = create_array(n);
 		print_array(a, n);
-		int* tmp = new int[n];
-		for (int i = 0; i < n; i++)
-			tmp[i] = a[i];
-		auto startTime = std::chrono::steady_clock::now();
-		radixsort(tmp, n);
-		auto endTime = std::chrono::steady_clock::now();
-		auto elapsed_ms = chrono::duration_cast<chrono::nanoseconds>(endTime - startTime).count();
-		print_array(tmp, n);
-		cout << "Linear time: " << elapsed_ms << " ns\n";
-
 	}
+	
 
 
 	int nodes_count = procNum;
@@ -398,49 +382,85 @@ int main(int argc, char *argv[])
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	if (n < 20)
-		for (int j = 0; j < nodes_count; j++)
-		{
-			MPI_Barrier(MPI_COMM_WORLD);
-			if (j == current_node)
-				if (diff_slices && current_node == LAST)
-				{
-					
-					for (int i = 0; i < block_size + remainder; i++)
-					{
-						if (recv_array[i] != a[current_node*block_size + i])
-						{
-							cout << "Sorted arrays are not equal!!!!" << endl;
-							return -1;
-						}
-						cout << "node " << current_node << " Sorted array " << i << " is " << recv_array[i] << endl;
-					}
-				}
-				else
-				{
-					for (int i = 0; i < block_size; i++)
-					{
-
-						if (recv_array[i] != a[current_node*block_size + i])
-						{
-							cout << "Sorted arrays are not equal!!!!" << endl;
-							return -1;
-						}
-						cout << "node " << current_node << " Sorted array " << i << " is " << recv_array[i] << endl;
-					}
-				}
-		}
-
-	MPI_Barrier(MPI_COMM_WORLD);
-
-
 	if (procRank == 0)
 	{
-		cout << "Sorted arrays are equal" << endl;
 		auto endTimeM = std::chrono::steady_clock::now();
 		auto elapsed_msM = chrono::duration_cast<chrono::seconds>(endTimeM - startTimeM).count();
 		cout << "Parralel time: " << elapsed_msM << " ns\n";
 	}
+	int *b = new int[n];
+	for (int j = 0; j < nodes_count; j++)
+	{
+		MPI_Barrier(MPI_COMM_WORLD);
+		if (j == current_node)
+			if (diff_slices && current_node == LAST)
+			{
+
+				for (int i = 0; i < block_size + remainder; i++)
+				{
+					b[j*block_size + i] = recv_array[i];
+				}
+			}
+			else
+			{
+				for (int i = 0; i < block_size; i++)
+				{
+					b[j*block_size + i] = recv_array[i];
+				}
+			}
+	}
+
+	if (procRank == 0)
+	{
+		if (n < 20)
+		{
+			cout << "Sorted array: ";
+			print_array(b, n);
+			cout << endl;
+		}
+	}
+	
+
+	//Linear
+	if (procRank == 0)
+	{
+		/*if (n%procNum != 0)
+		{
+			cout << "N % ProcNum !=0";
+			return -1;
+		}*/
+		
+		
+		int* tmp = new int[n];
+		for (int i = 0; i < n; i++)
+			tmp[i] = a[i];
+		auto startTime = std::chrono::steady_clock::now();
+		radixsort(tmp, n);
+		auto endTime = std::chrono::steady_clock::now();
+		auto elapsed_ms = chrono::duration_cast<chrono::nanoseconds>(endTime - startTime).count();
+		print_array(tmp, n);
+		cout << "Linear time: " << elapsed_ms << " ns\n";
+		bool trg = false;
+		for (int j = 0; j < n; j++)
+			if (b[j] != tmp[j])
+				trg = true;
+		if (trg)
+		{
+			cout << "Sorted arrays are not equal!!!!" << endl;
+			return -1;
+		}
+		else
+		{
+			cout << "Sorted arrays are equal" << endl;			
+		}
+	}
+	
+	
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+
+	
 	MPI_Finalize();
 	return 0;
 }
