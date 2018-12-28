@@ -169,6 +169,18 @@ int main(int argc, char **argv)
 		OutputMatrix(n, s, m4);
 		cout << endl << "MPI time: " << endTime - startTime << endl;
 	}
+	if (procRank == 0)
+	{
+		for (int i = 0; i < n*s; i++)
+		{
+			if (m3[i] != m4[i])
+			{
+				cout << "Matrixs are not equal" << endl;
+				return -1;
+			}
+		}
+		cout << "Matrixs are equal" << endl;		
+	}
 
 	delete[] send_displs;
 	delete[] send_quantity;
